@@ -7,7 +7,7 @@ import 'package:vega_ai/core/models/assistant_state.dart';
 /// Large animated circular assistant button inspired by sci-fi AI interfaces (JARVIS).
 ///
 /// Transitions visually based on [AssistantStatus]:
-/// - Idle: Soft ambient breathing with gentle lavender/pink aura.
+/// - Idle: Calm resting state with zero active animation loops to conserve mobile battery.
 /// - Listening: Expanding pulsing sonic rings in vivid Primary Pink (#F73B9A).
 /// - Processing: Continuous rotating orbital particle ring.
 /// - Speaking: Frequency-modulated wave glow.
@@ -39,30 +39,65 @@ class _VoiceOrbButtonState extends State<VoiceOrbButton>
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1800),
-    )..repeat(reverse: true);
+    );
 
     _rotationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 3200),
-    )..repeat();
+    );
 
     _waveController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1400),
-    )..repeat();
+    );
+
+    _syncAnimations(widget.status);
   }
 
   @override
   void didUpdateWidget(covariant VoiceOrbButton oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.status != oldWidget.status) {
-      if (widget.status.isListening) {
+      _syncAnimations(widget.status);
+    }
+  }
+
+  /// Pauses continuous animation controllers during [AssistantStatus.idle] to prevent battery drain.
+  /// Dynamically wakes the required controllers when active states begin.
+  void _syncAnimations(AssistantStatus status) {
+    switch (status) {
+      case AssistantStatus.idle:
+        _pulseController.stop();
+        _pulseController.reset();
+        _rotationController.stop();
+        _rotationController.reset();
+        _waveController.stop();
+        _waveController.reset();
+        break;
+
+      case AssistantStatus.listening:
         _pulseController.duration = const Duration(milliseconds: 900);
-        _pulseController.repeat(reverse: true);
-      } else {
-        _pulseController.duration = const Duration(milliseconds: 1800);
-        _pulseController.repeat(reverse: true);
-      }
+        if (!_pulseController.isAnimating) _pulseController.repeat(reverse: true);
+        _rotationController.stop();
+        _rotationController.reset();
+        if (!_waveController.isAnimating) _waveController.repeat();
+        break;
+
+      case AssistantStatus.processing:
+        _pulseController.duration = const Duration(milliseconds: 1400);
+        if (!_pulseController.isAnimating) _pulseController.repeat(reverse: true);
+        if (!_rotationController.isAnimating) _rotationController.repeat();
+        _waveController.stop();
+        _waveController.reset();
+        break;
+
+      case AssistantStatus.speaking:
+        _pulseController.duration = const Duration(milliseconds: 1200);
+        if (!_pulseController.isAnimating) _pulseController.repeat(reverse: true);
+        _rotationController.stop();
+        _rotationController.reset();
+        if (!_waveController.isAnimating) _waveController.repeat();
+        break;
     }
   }
 
@@ -96,7 +131,7 @@ class _VoiceOrbButtonState extends State<VoiceOrbButton>
                 if (widget.status.isListening || widget.status.isSpeaking)
                   _buildWaveRing(widget.status),
 
-                // Layer 2: Rotating orbital boundary (when processing or active)
+                // Layer 2: Rotating orbital boundary (when processing)
                 if (widget.status.isProcessing)
                   _buildProcessingRing(),
 

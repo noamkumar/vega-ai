@@ -42,7 +42,14 @@ migrate_working_dir/
 # Symbol processing
 **/android/app/src/main/res/raw/keep.xml
 
-# Secrets
+# Secrets & Keystores
 *.env
 *.key
 *.jks
+*.keystore
+
+# Large AI model binaries
+*.bin
+*.gguf
+*.tflite
+*.onnx
