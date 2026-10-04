@@ -7,16 +7,18 @@ import 'package:vega_ai/core/models/voice_command.dart';
 import 'package:vega_ai/core/utils/logger.dart';
 import 'package:vega_ai/features/automation/action_registry.dart';
 import 'package:vega_ai/services/ai/ai_router.dart';
+import 'package:vega_ai/services/ai/local_model_manager.dart';
 import 'package:vega_ai/services/ai/offline_ai_service.dart';
 import 'package:vega_ai/services/ai/online_gemini_service.dart';
 import 'package:vega_ai/services/connectivity/connectivity_service.dart';
 import 'package:vega_ai/services/speech/speech_service.dart';
+import 'package:vega_ai/services/storage/storage_service.dart';
 import 'package:vega_ai/services/voice/tts_service.dart';
 
 /// Central state manager for the VEGA AI voice assistant.
 ///
-/// Coordinates speech capture, AI intent classification, safe device automation,
-/// TTS voice responses, and network connectivity status.
+/// Coordinates speech capture, wake-word detection, offline model inference,
+/// safe device automation, interruptible TTS responses, and connectivity.
 class AssistantController extends ChangeNotifier {
   static const _logger = VegaLogger('AssistantController');
 
@@ -25,6 +27,8 @@ class AssistantController extends ChangeNotifier {
   final TTSService _ttsService;
   final ActionRegistry _actionRegistry;
   final ConnectivityService _connectivityService;
+  final StorageService _storageService;
+  final OnlineGeminiService? _onlineService;
 
   AssistantStatus _status = AssistantStatus.idle;
   bool _isOnline = true;
@@ -37,23 +41,59 @@ class AssistantController extends ChangeNotifier {
   int _activeInteractionId = 0;
   bool _isDisposed = false;
 
+  /// Default constructor (takes optional injected services, falls back to mocks for unit tests).
   AssistantController({
     AIRouter? aiRouter,
     SpeechService? speechService,
     TTSService? ttsService,
     ActionRegistry? actionRegistry,
     ConnectivityService? connectivityService,
+    StorageService? storageService,
+    OnlineGeminiService? onlineService,
   })  : _connectivityService = connectivityService ?? DefaultConnectivityService(),
         _actionRegistry = actionRegistry ?? ActionRegistry(),
         _speechService = speechService ?? MockSpeechService(),
         _ttsService = ttsService ?? MockTTSService(),
+        _storageService = storageService ?? JsonFileStorageService(),
+        _onlineService = onlineService,
         _aiRouter = aiRouter ??
             AIRouter(
               offlineService: OfflineAIService(),
-              onlineService: OnlineGeminiService(),
+              onlineService: onlineService ?? OnlineGeminiService(),
               connectivityService: connectivityService ?? DefaultConnectivityService(),
             ) {
     _initConnectivityListener();
+    _loadSettings();
+  }
+
+  /// Production factory for running on physical Android hardware.
+  factory AssistantController.forDevice({
+    StorageService? storageService,
+    ActionRegistry? actionRegistry,
+    ConnectivityService? connectivityService,
+    LocalModelManager? modelManager,
+  }) {
+    final storage = storageService ?? JsonFileStorageService();
+    final connectivity = connectivityService ?? DefaultConnectivityService();
+    final localManager = modelManager ?? LocalModelManager();
+    final online = OnlineGeminiService();
+    final offline = OfflineAIService(modelManager: localManager);
+    final router = AIRouter(
+      offlineService: offline,
+      onlineService: online,
+      connectivityService: connectivity,
+    );
+    final speech = PlatformSpeechService();
+    final tts = PlatformTTSService();
+    return AssistantController(
+      aiRouter: router,
+      speechService: speech,
+      ttsService: tts,
+      actionRegistry: actionRegistry ?? ActionRegistry(),
+      connectivityService: connectivity,
+      storageService: storage,
+      onlineService: online,
+    );
   }
 
   // Getters
@@ -65,6 +105,8 @@ class AssistantController extends ChangeNotifier {
   CommandIntent? get pendingConfirmationIntent => _pendingConfirmationIntent;
   bool get hasPendingConfirmation => _pendingConfirmationIntent != null;
   bool get isDisposed => _isDisposed;
+  OnlineGeminiService? get onlineService => _onlineService;
+  AIRouter get aiRouter => _aiRouter;
 
   void _initConnectivityListener() {
     _connectivitySubscription = _connectivityService.onConnectivityChanged.listen((connected) {
@@ -74,15 +116,48 @@ class AssistantController extends ChangeNotifier {
     });
   }
 
+  Future<void> _loadSettings() async {
+    try {
+      final apiKey = await _storageService.getGeminiApiKey();
+      if (apiKey != null && apiKey.isNotEmpty) {
+        _onlineService?.updateApiKey(apiKey);
+      }
+      final model = await _storageService.getGeminiModel();
+      _onlineService?.updateModelId(model);
+
+      final offlineFirst = await _storageService.getOfflineFirst();
+      _aiRouter.preferOfflineFirst = offlineFirst;
+
+      final rate = await _storageService.getSpeechRate();
+      final pitch = await _storageService.getSpeechPitch();
+      await _ttsService.setVoiceParameters(rate: rate, pitch: pitch);
+    } catch (e) {
+      _logger.warning('Failed to load saved settings: $e');
+    }
+  }
+
   /// Manually toggles online/offline AI mode from UI pill.
   void toggleOnlineMode() {
     if (_isDisposed) return;
     _isOnline = !_isOnline;
-    if (_connectivityService is DefaultConnectivityService) {
-      (_connectivityService as DefaultConnectivityService).setConnected(_isOnline);
-    }
+    _connectivityService.setConnected(_isOnline);
     _logger.info('Toggled AI operating mode to: ${_isOnline ? "Online" : "Offline"}');
     notifyListeners();
+  }
+
+  /// Strips wake-word prefix ("Hey Vega", "Vega841", "Vega") from captured utterances.
+  String _cleanWakeWord(String transcript) {
+    var text = transcript.trim();
+    final lower = text.toLowerCase();
+    if (lower.startsWith('hey vega')) {
+      text = text.substring(8).trim();
+    } else if (lower.startsWith('vega841')) {
+      text = text.substring(7).trim();
+    } else if (lower.startsWith('vega')) {
+      text = text.substring(4).trim();
+    }
+    text = text.replaceFirst(RegExp(r'^[,:\s]+'), '');
+    return text.isEmpty ? transcript : text;
   }
 
   /// Activates listening loop (invoked by orb tap or wake-word).
@@ -101,12 +176,9 @@ class AssistantController extends ChangeNotifier {
       return;
     }
 
-    // Guard 3: If speaking, tap interrupts speech and returns to idle
+    // Guard 3: If speaking, interrupt speech to start listening
     if (_status.isSpeaking) {
-      _activeInteractionId++;
       await _ttsService.stop();
-      _setStatus(AssistantStatus.idle);
-      return;
     }
 
     // Invalidate any past interactions and clear stale confirmation state
@@ -154,12 +226,16 @@ class AssistantController extends ChangeNotifier {
 
     final currentId = ++_activeInteractionId;
     _setStatus(AssistantStatus.processing);
-    _activeTranscript = command.transcript;
+
+    final cleanedTranscript = _cleanWakeWord(command.transcript);
+    final effectiveCommand = command.copyWith(transcript: cleanedTranscript);
+
+    _activeTranscript = cleanedTranscript;
     notifyListeners();
 
     try {
       // 1. Route intent through AI Router
-      final intent = await _aiRouter.routeCommand(command);
+      final intent = await _aiRouter.routeCommand(effectiveCommand);
       if (_isDisposed || _activeInteractionId != currentId) return;
       _lastIntent = intent;
 
@@ -234,7 +310,7 @@ class AssistantController extends ChangeNotifier {
       );
     } catch (e, stack) {
       _logger.error('Error confirming pending action', e, stack);
-      if (_isDisposed) return;
+      if (_isDisposed || _activeInteractionId != currentId) return;
       _assistantResponse = 'Failed to execute the confirmed action.';
       _setStatus(AssistantStatus.idle);
     }
@@ -257,12 +333,12 @@ class AssistantController extends ChangeNotifier {
 
   @override
   void dispose() {
+    if (_isDisposed) return;
     _isDisposed = true;
     _connectivitySubscription?.cancel();
     _connectivitySubscription = null;
     _speechService.dispose();
     _ttsService.dispose();
-    _connectivityService.dispose();
     super.dispose();
   }
 }

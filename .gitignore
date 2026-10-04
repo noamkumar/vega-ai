@@ -38,6 +38,8 @@ migrate_working_dir/
 **/android/gradlew.bat
 **/android/local.properties
 **/android/**/GeneratedPluginRegistrant.java
+**/android/**/build/
+**/android/build/
 
 # Symbol processing
 **/android/app/src/main/res/raw/keep.xml

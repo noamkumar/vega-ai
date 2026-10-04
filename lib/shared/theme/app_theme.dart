@@ -6,7 +6,7 @@ import 'package:vega_ai/core/constants/app_dimensions.dart';
 abstract class AppTheme {
   /// Dark Theme (JARVIS sci-fi holographic ambiance with high-tech glowing pink & lavender).
   static ThemeData get darkTheme {
-    final colorScheme = const ColorScheme.dark(
+    const colorScheme = ColorScheme.dark(
       primary: AppColors.primaryPink,
       onPrimary: Colors.white,
       primaryContainer: Color(0xFF4A1033),
@@ -26,12 +26,12 @@ abstract class AppTheme {
       brightness: Brightness.dark,
       scaffoldBackgroundColor: AppColors.backgroundDark,
       colorScheme: colorScheme,
-      cardTheme: CardTheme(
+      cardTheme: const CardThemeData(
         color: AppColors.surfaceDarkSubtle,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: AppDimensions.roundedMd,
-          side: const BorderSide(color: AppColors.cardBorderDark, width: 1),
+          side: BorderSide(color: AppColors.cardBorderDark, width: 1),
         ),
       ),
       appBarTheme: const AppBarTheme(
@@ -81,7 +81,7 @@ abstract class AppTheme {
 
   /// Light Theme (Subtle neutral background with clean lavender and energetic pink accents).
   static ThemeData get lightTheme {
-    final colorScheme = const ColorScheme.light(
+    const colorScheme = ColorScheme.light(
       primary: AppColors.primaryPink,
       onPrimary: Colors.white,
       primaryContainer: Color(0xFFFFE0EE),
@@ -101,12 +101,12 @@ abstract class AppTheme {
       brightness: Brightness.light,
       scaffoldBackgroundColor: AppColors.backgroundLight,
       colorScheme: colorScheme,
-      cardTheme: CardTheme(
+      cardTheme: const CardThemeData(
         color: AppColors.surfaceLight,
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: AppDimensions.roundedMd,
-          side: const BorderSide(color: AppColors.cardBorderLight, width: 1),
+          side: BorderSide(color: AppColors.cardBorderLight, width: 1),
         ),
       ),
       appBarTheme: const AppBarTheme(

@@ -16,6 +16,15 @@ class VoiceCommand {
     this.isWakeWordTriggered = false,
   });
 
+  factory VoiceCommand.fromUtterance(String text, {double confidence = 0.95}) {
+    return VoiceCommand(
+      id: 'cmd_${DateTime.now().millisecondsSinceEpoch}',
+      transcript: text,
+      confidence: confidence,
+      timestamp: DateTime.now(),
+    );
+  }
+
   VoiceCommand copyWith({
     String? id,
     String? transcript,

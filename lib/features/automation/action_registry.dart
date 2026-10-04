@@ -20,7 +20,7 @@ class ActionRegistry {
   }
 
   void _registerDefaultApprovedActions() {
-    // MVP Action 1: Torch / Flashlight control
+    // Action 1: Torch / Flashlight control
     registerAction(
       const AppAction(
         id: 'toggle_torch',
@@ -31,7 +31,7 @@ class ActionRegistry {
       ),
     );
 
-    // MVP Action 2: Battery diagnostics
+    // Action 2: Battery diagnostics
     registerAction(
       const AppAction(
         id: 'get_battery_level',
@@ -39,6 +39,116 @@ class ActionRegistry {
         description: 'Query current battery percentage and charging level.',
         category: ActionCategory.systemInfo,
         safetyLevel: ActionSafetyLevel.safe,
+      ),
+    );
+
+    // Action 3: App Launching
+    registerAction(
+      const AppAction(
+        id: 'launch_app',
+        name: 'Launch Application',
+        description: 'Launch an installed Android application by name or package.',
+        category: ActionCategory.appShortcuts,
+        safetyLevel: ActionSafetyLevel.safe,
+      ),
+    );
+
+    // Action 4: Camera Launch
+    registerAction(
+      const AppAction(
+        id: 'open_camera',
+        name: 'Camera Launch',
+        description: 'Launch the native camera application.',
+        category: ActionCategory.deviceHardware,
+        safetyLevel: ActionSafetyLevel.safe,
+      ),
+    );
+
+    // Action 5: System Settings
+    registerAction(
+      const AppAction(
+        id: 'open_settings',
+        name: 'System Settings',
+        description: 'Open device settings (Wi-Fi, Bluetooth, Sound, Display).',
+        category: ActionCategory.systemInfo,
+        safetyLevel: ActionSafetyLevel.safe,
+      ),
+    );
+
+    // Action 6: Volume Control
+    registerAction(
+      const AppAction(
+        id: 'set_volume',
+        name: 'Volume Adjustment',
+        description: 'Adjust device audio stream volume level.',
+        category: ActionCategory.mediaAudio,
+        safetyLevel: ActionSafetyLevel.safe,
+      ),
+    );
+
+    // Action 7: Volume Level Query
+    registerAction(
+      const AppAction(
+        id: 'get_volume',
+        name: 'Volume Diagnostics',
+        description: 'Query current volume level.',
+        category: ActionCategory.systemInfo,
+        safetyLevel: ActionSafetyLevel.safe,
+      ),
+    );
+
+    // Action 8: Music Playback & Search
+    registerAction(
+      const AppAction(
+        id: 'play_music',
+        name: 'Music Playback',
+        description: 'Search and play songs via Spotify, YouTube, or default media player.',
+        category: ActionCategory.mediaAudio,
+        safetyLevel: ActionSafetyLevel.safe,
+      ),
+    );
+
+    // Action 9: Media Session Control
+    registerAction(
+      const AppAction(
+        id: 'control_media',
+        name: 'Media Session Control',
+        description: 'Control media playback (play, pause, next, previous).',
+        category: ActionCategory.mediaAudio,
+        safetyLevel: ActionSafetyLevel.safe,
+      ),
+    );
+
+    // Action 10: Countdown Timer
+    registerAction(
+      const AppAction(
+        id: 'set_timer',
+        name: 'Countdown Timer',
+        description: 'Set a clock countdown timer.',
+        category: ActionCategory.systemInfo,
+        safetyLevel: ActionSafetyLevel.safe,
+      ),
+    );
+
+    // Action 11: Clock Alarm
+    registerAction(
+      const AppAction(
+        id: 'set_alarm',
+        name: 'Clock Alarm',
+        description: 'Set a system clock alarm.',
+        category: ActionCategory.systemInfo,
+        safetyLevel: ActionSafetyLevel.safe,
+      ),
+    );
+
+    // Action 12: Communication / Messaging (Requires User Confirmation)
+    registerAction(
+      const AppAction(
+        id: 'send_message',
+        name: 'Send Message',
+        description: 'Send SMS or chat message to a contact.',
+        category: ActionCategory.communication,
+        safetyLevel: ActionSafetyLevel.needsConfirmation,
       ),
     );
 
@@ -162,6 +272,196 @@ class ActionRegistry {
         }
       }
 
+      if (action.id == 'launch_app') {
+        final pkg = intent.parameters['packageName'] as String?;
+        final appName = intent.parameters['appName'] as String? ?? pkg ?? 'the requested application';
+        final success = await PlatformChannels.automation.invokeMethod<bool>(
+          PlatformChannels.methodLaunchApp,
+          {'packageName': pkg, 'appName': appName},
+        );
+
+        if (success == true) {
+          return ExecutionResult.success(
+            'Opening $appName, sir.',
+            data: {'appName': appName, 'packageName': pkg},
+          );
+        } else {
+          return ExecutionResult.failure(
+            'Could not open $appName.',
+            failure: PlatformAutomationFailure('App launch failed', actionId: action.id),
+          );
+        }
+      }
+
+      if (action.id == 'open_camera') {
+        final success = await PlatformChannels.automation.invokeMethod<bool>(
+          PlatformChannels.methodOpenCamera,
+        );
+
+        if (success == true) {
+          return ExecutionResult.success(
+            'Camera activated, sir.',
+            data: {'camera': true},
+          );
+        } else {
+          return ExecutionResult.failure(
+            'Failed to launch camera.',
+            failure: PlatformAutomationFailure('Camera launch failed', actionId: action.id),
+          );
+        }
+      }
+
+      if (action.id == 'open_settings') {
+        final type = intent.parameters['type'] as String? ?? 'general';
+        final success = await PlatformChannels.automation.invokeMethod<bool>(
+          PlatformChannels.methodOpenSettings,
+          {'type': type},
+        );
+
+        if (success == true) {
+          return ExecutionResult.success(
+            'Opening $type settings, sir.',
+            data: {'settings': type},
+          );
+        } else {
+          return ExecutionResult.failure(
+            'Failed to open settings.',
+            failure: PlatformAutomationFailure('Settings launch failed', actionId: action.id),
+          );
+        }
+      }
+
+      if (action.id == 'set_volume') {
+        final mode = intent.parameters['mode'] as String? ?? 'increase';
+        final level = intent.parameters['level'] as int?;
+        final success = await PlatformChannels.automation.invokeMethod<bool>(
+          PlatformChannels.methodSetVolume,
+          {'mode': mode, 'level': level},
+        );
+
+        if (success == true) {
+          return ExecutionResult.success(
+            'Audio volume adjusted, sir.',
+            data: {'volumeMode': mode, 'level': level},
+          );
+        } else {
+          return ExecutionResult.failure(
+            'Failed to adjust audio volume.',
+            failure: PlatformAutomationFailure('Volume adjustment failed', actionId: action.id),
+          );
+        }
+      }
+
+      if (action.id == 'get_volume') {
+        final volumeData = await PlatformChannels.automation.invokeMethod<Map>(
+          PlatformChannels.methodGetVolume,
+        );
+
+        if (volumeData != null) {
+          final current = volumeData['current'];
+          final max = volumeData['max'];
+          return ExecutionResult.success(
+            'Current audio volume is $current out of $max, sir.',
+            data: {'currentVolume': current, 'maxVolume': max},
+          );
+        } else {
+          return ExecutionResult.failure(
+            'Could not retrieve volume status.',
+            failure: PlatformAutomationFailure('Volume query returned null', actionId: action.id),
+          );
+        }
+      }
+
+      if (action.id == 'play_music') {
+        final query = intent.parameters['query'] as String?;
+        final app = intent.parameters['app'] as String?;
+        final res = await PlatformChannels.automation.invokeMethod<Map>(
+          PlatformChannels.methodPlayMusic,
+          {'query': query, 'app': app},
+        );
+
+        final appName = res?['app'] as String? ?? 'media player';
+        final confirmed = res?['confirmed'] == true;
+        if (confirmed) {
+          final feedback = query != null && query.isNotEmpty
+              ? 'Playing "$query" on $appName, sir.'
+              : 'Resuming music playback on $appName, sir.';
+          return ExecutionResult.success(
+            feedback,
+            data: {'query': query, 'app': appName},
+          );
+        } else {
+          return ExecutionResult.failure(
+            'Could not initiate music playback.',
+            failure: PlatformAutomationFailure('Playback not confirmed', actionId: action.id),
+          );
+        }
+      }
+
+      if (action.id == 'control_media') {
+        final actionCmd = intent.parameters['action'] as String? ?? 'play_pause';
+        final success = await PlatformChannels.automation.invokeMethod<bool>(
+          PlatformChannels.methodControlMedia,
+          {'action': actionCmd},
+        );
+
+        if (success == true) {
+          return ExecutionResult.success(
+            'Media command acknowledged, sir.',
+            data: {'action': actionCmd},
+          );
+        } else {
+          return ExecutionResult.failure(
+            'Failed to dispatch media control.',
+            failure: PlatformAutomationFailure('Media control returned false', actionId: action.id),
+          );
+        }
+      }
+
+      if (action.id == 'set_timer') {
+        final seconds = (intent.parameters['seconds'] as num?)?.toInt() ?? 60;
+        final message = intent.parameters['message'] as String? ?? 'VEGA Timer';
+        final success = await PlatformChannels.automation.invokeMethod<bool>(
+          PlatformChannels.methodSetTimer,
+          {'seconds': seconds, 'message': message},
+        );
+
+        if (success == true) {
+          return ExecutionResult.success(
+            'Timer set for $seconds seconds, sir.',
+            data: {'seconds': seconds, 'message': message},
+          );
+        } else {
+          return ExecutionResult.failure(
+            'Could not set timer.',
+            failure: PlatformAutomationFailure('Timer launch failed', actionId: action.id),
+          );
+        }
+      }
+
+      if (action.id == 'set_alarm') {
+        final hour = (intent.parameters['hour'] as num?)?.toInt() ?? 7;
+        final minute = (intent.parameters['minute'] as num?)?.toInt() ?? 0;
+        final message = intent.parameters['message'] as String? ?? 'VEGA Alarm';
+        final success = await PlatformChannels.automation.invokeMethod<bool>(
+          PlatformChannels.methodSetAlarm,
+          {'hour': hour, 'minute': minute, 'message': message},
+        );
+
+        if (success == true) {
+          final display = '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+          return ExecutionResult.success(
+            'Alarm set for $display, sir.',
+            data: {'alarm': display, 'message': message},
+          );
+        } else {
+          return ExecutionResult.failure(
+            'Could not set alarm.',
+            failure: PlatformAutomationFailure('Alarm launch failed', actionId: action.id),
+          );
+        }
+      }
+
       // If an action has no handler
       return ExecutionResult.failure(
         'No platform implementation found for ${action.name}.',
@@ -195,6 +495,15 @@ class ActionRegistry {
           '${action.name} is not supported on this Android version.',
           failure: PlatformAutomationFailure(
             e.message ?? 'Operation unsupported on this OS',
+            actionId: action.id,
+            code: e.code,
+          ),
+        );
+      } else if (e.code == 'APP_NOT_FOUND') {
+        return ExecutionResult.failure(
+          'Requested application is not installed on your phone.',
+          failure: PlatformAutomationFailure(
+            e.message ?? 'App not found',
             actionId: action.id,
             code: e.code,
           ),

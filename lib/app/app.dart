@@ -18,7 +18,7 @@ class _VegaAppState extends State<VegaApp> {
   @override
   void initState() {
     super.initState();
-    _assistantController = AssistantController();
+    _assistantController = AssistantController.forDevice();
   }
 
   @override

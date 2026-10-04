@@ -6,7 +6,7 @@ import 'package:vega_ai/services/ai/online_gemini_service.dart';
 import 'package:vega_ai/services/connectivity/connectivity_service.dart';
 
 /// Intelligent AI Router responsible for arbitrating between offline local AI
-/// and cloud Gemini AI based on network connectivity and intent complexity.
+/// and cloud Gemini AI based on network connectivity, user preferences, and intent complexity.
 class AIRouter {
   static const _logger = VegaLogger('AIRouter');
 
@@ -14,20 +14,20 @@ class AIRouter {
   final OnlineGeminiService _onlineService;
   final ConnectivityService _connectivityService;
 
-  bool _preferOfflineFirst;
+  bool preferOfflineFirst;
 
   AIRouter({
     required OfflineAIService offlineService,
     required OnlineGeminiService onlineService,
     required ConnectivityService connectivityService,
-    bool preferOfflineFirst = true,
+    this.preferOfflineFirst = true,
   })  : _offlineService = offlineService,
         _onlineService = onlineService,
-        _connectivityService = connectivityService,
-        _preferOfflineFirst = preferOfflineFirst;
+        _connectivityService = connectivityService;
 
-  bool get preferOfflineFirst => _preferOfflineFirst;
-  set preferOfflineFirst(bool value) => _preferOfflineFirst = value;
+  OfflineAIService get offlineService => _offlineService;
+  OnlineGeminiService get onlineService => _onlineService;
+  ConnectivityService get connectivityService => _connectivityService;
 
   /// Analyzes a voice command and routes it to the optimal AI pipeline.
   Future<CommandIntent> routeCommand(VoiceCommand command) async {
@@ -35,16 +35,19 @@ class AIRouter {
 
     // 1. If device is offline, route exclusively through offline engine
     if (!isConnected) {
-      _logger.info('Device is offline. Routing directly to offline rule engine.');
+      _logger.info('Device is offline. Routing directly to offline local engine.');
       return _offlineService.parseIntent(command);
     }
 
-    // 2. If user prefers offline-first, attempt local matching first
-    if (_preferOfflineFirst) {
+    // 2. If user prefers offline-first, attempt local matching for device actions
+    if (preferOfflineFirst) {
       final localIntent = await _offlineService.parseIntent(command);
 
-      // If local intent matched a known action with high confidence, use it immediately
-      if (localIntent.isOfflineCapable && localIntent.category != IntentCategory.unknown) {
+      // If local intent matched a known device/query action with high confidence, use it immediately
+      if (localIntent.isOfflineCapable &&
+          localIntent.category != IntentCategory.unknown &&
+          localIntent.category != IntentCategory.conversationalAI &&
+          localIntent.confidence >= 0.90) {
         _logger.info('Intent resolved offline with confidence ${localIntent.confidence}');
         return localIntent;
       }

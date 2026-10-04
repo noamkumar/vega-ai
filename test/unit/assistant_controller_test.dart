@@ -80,6 +80,27 @@ class TestTTSService implements TTSService {
   void dispose() {}
 }
 
+class TestAIRouter extends AIRouter {
+  CommandIntent? nextIntent;
+
+  TestAIRouter({
+    required super.offlineService,
+    required super.onlineService,
+    required super.connectivityService,
+    super.preferOfflineFirst = true,
+  });
+
+  @override
+  Future<CommandIntent> routeCommand(VoiceCommand command) async {
+    if (nextIntent != null) {
+      final intent = nextIntent!;
+      nextIntent = null;
+      return intent;
+    }
+    return super.routeCommand(command);
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -88,7 +109,7 @@ void main() {
     late TestTTSService ttsService;
     late ActionRegistry actionRegistry;
     late DefaultConnectivityService connectivityService;
-    late AIRouter aiRouter;
+    late TestAIRouter aiRouter;
     late AssistantController controller;
 
     setUp(() {
@@ -96,7 +117,7 @@ void main() {
       ttsService = TestTTSService();
       actionRegistry = ActionRegistry();
       connectivityService = DefaultConnectivityService(initialConnected: true);
-      aiRouter = AIRouter(
+      aiRouter = TestAIRouter(
         offlineService: OfflineAIService(),
         onlineService: OnlineGeminiService(),
         connectivityService: connectivityService,
@@ -192,8 +213,6 @@ void main() {
         ),
       );
 
-      await controller.activateAssistant();
-
       final command = VoiceCommand(
         id: 'cmd_2',
         transcript: 'Execute confirmed action',
@@ -202,13 +221,14 @@ void main() {
       );
 
       // Force router intent for test
-      final intent = CommandIntent(
+      const intent = CommandIntent(
         id: 'intent_confirm',
         category: IntentCategory.deviceControl,
         actionName: 'confirm_required_action',
         confidence: 1.0,
         isOfflineCapable: true,
       );
+      aiRouter.nextIntent = intent;
 
       // Simulate intent handling directly via command
       await controller.activateAssistant();
@@ -218,10 +238,9 @@ void main() {
       await speechService.onResultCallback!(command);
 
       // If intent requires confirmation, pendingConfirmationIntent is preserved
-      if (controller.lastIntent?.actionName == 'confirm_required_action') {
-        expect(controller.hasPendingConfirmation, isTrue);
-        expect(controller.pendingConfirmationIntent, isNotNull);
-      }
+      expect(controller.hasPendingConfirmation, isTrue);
+      expect(controller.pendingConfirmationIntent, isNotNull);
+      expect(controller.pendingConfirmationIntent?.actionName, equals('confirm_required_action'));
     });
 
     test('Disposing controller cancels connectivity subscription and prevents notifications', () {

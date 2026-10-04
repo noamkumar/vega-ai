@@ -1,4 +1,3 @@
-import 'package:vega_ai/core/models/assistant_state.dart';
 import 'package:vega_ai/core/models/command_intent.dart';
 import 'package:vega_ai/core/models/execution_result.dart';
 

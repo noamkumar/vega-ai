@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:vega_ai/core/models/command_intent.dart';
 import 'package:vega_ai/core/models/voice_command.dart';
 import 'package:vega_ai/services/ai/ai_router.dart';
 import 'package:vega_ai/services/ai/offline_ai_service.dart';

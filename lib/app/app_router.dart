@@ -37,7 +37,7 @@ abstract class AppRouter {
 
       case settings:
         return MaterialPageRoute(
-          builder: (_) => const SettingsScreen(),
+          builder: (_) => SettingsScreen(controller: assistantController),
           settings: routeSettings,
         );
 

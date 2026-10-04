@@ -24,7 +24,7 @@ class VegaAppBar extends StatelessWidget implements PreferredSizeWidget {
         shaderCallback: (bounds) => AppColors.brandGradient.createShader(bounds),
         child: Text(
           title,
-          style: TextStyle(
+          style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w700,
             fontSize: 20,
